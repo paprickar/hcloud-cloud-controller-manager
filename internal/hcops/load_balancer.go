@@ -581,8 +581,10 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 		// Set of all K8S server IDs currently assigned as nodes to this
 		// cluster.
 		k8sNodeIDsHCloud = make(map[int64]bool)
-		k8sNodeIDsRobot  = make(map[int]bool)
+		k8sNodeIDsRobot  = make(map[int]*corev1.Node)
 		k8sNodes         = make(map[int64]*corev1.Node)
+
+		internalRobotIPsToNode = make(map[string]*corev1.Node)
 
 		robotIPsToIDs = make(map[string]int)
 		robotIDToIPv4 = make(map[int]string)
@@ -618,7 +620,10 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 		if isCloudServer {
 			k8sNodeIDsHCloud[id] = true
 		} else {
-			k8sNodeIDsRobot[int(id)] = true
+			if l.Cfg.LoadBalancer.UseNodeIP {
+				internalRobotIPsToNode[node.Status.Addresses[0].Address] = node
+			}
+			k8sNodeIDsRobot[int(id)] = node
 		}
 		k8sNodes[id] = node
 	}
@@ -645,6 +650,8 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 	// not assigned as nodes to the K8S Load Balancer.
 	for _, target := range lb.Targets {
 		if target.Type == hcloud.LoadBalancerTargetTypeServer {
+			// We have to check if corresponding node exists at our cluster, if it does, we don't need to delete
+			// the target
 			id := target.Server.Server.ID
 			recreate := target.UsePrivateIP != usePrivateIP
 			hclbTargetIDs[id] = k8sNodeIDsHCloud[id] && !recreate
@@ -679,7 +686,15 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 		if target.Type == hcloud.LoadBalancerTargetTypeIP {
 			ip := target.IP.IP
 			id, foundServer := robotIPsToIDs[ip]
-			hclbTargetIPs[ip] = foundServer && k8sNodeIDsRobot[id]
+			_, exists := k8sNodeIDsRobot[id]
+			hclbTargetIPs[ip] = foundServer && exists
+
+			if l.Cfg.LoadBalancer.UseNodeIP {
+				_, exists = internalRobotIPsToNode[ip]
+
+				hclbTargetIPs[ip] = exists
+			}
+
 			if hclbTargetIPs[ip] {
 				continue
 			}
@@ -757,9 +772,13 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 	if l.Cfg.Robot.Enabled {
 		// Assign the dedicated servers which are currently assigned as nodes
 		// to the K8S Load Balancer as IP targets to the HC Load Balancer.
-		for id := range k8sNodeIDsRobot {
+		for id, node := range k8sNodeIDsRobot {
 			ip := robotIDToIPv4[id]
 			node := k8sNodes[int64(id)]
+
+			if l.Cfg.LoadBalancer.UseNodeIP {
+				ip = node.Status.Addresses[0].Address
+			}
 
 			// Don't assign the node again if it is already assigned to the HC load
 			// balancer.

@@ -33,6 +33,7 @@ const (
 	hcloudLoadBalancersNetworkZone           = "HCLOUD_LOAD_BALANCERS_NETWORK_ZONE"
 	hcloudLoadBalancersDisablePrivateIngress = "HCLOUD_LOAD_BALANCERS_DISABLE_PRIVATE_INGRESS"
 	hcloudLoadBalancersUsePrivateIP          = "HCLOUD_LOAD_BALANCERS_USE_PRIVATE_IP"
+	hcloudLoadBalancersUseNodeIP             = "HCLOUD_LOAD_BALANCERS_USE_NODE_IP"
 	hcloudLoadBalancersDisableIPv6           = "HCLOUD_LOAD_BALANCERS_DISABLE_IPV6"
 
 	hcloudMetricsEnabled = "HCLOUD_METRICS_ENABLED"
@@ -76,6 +77,7 @@ type LoadBalancerConfiguration struct {
 	NetworkZone           string
 	DisablePrivateIngress bool
 	UsePrivateIP          bool
+	UseNodeIP             bool
 	DisableIPv6           bool
 }
 
@@ -165,6 +167,10 @@ func Read() (HCCMConfiguration, error) {
 		errs = append(errs, err)
 	}
 	cfg.LoadBalancer.UsePrivateIP, err = getEnvBool(hcloudLoadBalancersUsePrivateIP, false)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	cfg.LoadBalancer.UseNodeIP, err = getEnvBool(hcloudLoadBalancersUseNodeIP, false)
 	if err != nil {
 		errs = append(errs, err)
 	}
