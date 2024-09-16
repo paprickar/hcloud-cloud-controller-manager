@@ -772,7 +772,7 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 	if l.Cfg.Robot.Enabled {
 		// Assign the dedicated servers which are currently assigned as nodes
 		// to the K8S Load Balancer as IP targets to the HC Load Balancer.
-		for id, node := range k8sNodeIDsRobot {
+		for id := range k8sNodeIDsRobot {
 			ip := robotIDToIPv4[id]
 			node := k8sNodes[int64(id)]
 
